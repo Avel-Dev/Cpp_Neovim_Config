@@ -35,8 +35,14 @@ local plugins = {
           name = "Launch file",
           type = "codelldb",
           request = "launch", -- must be lowercase
-          program = function()
-            return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file")
+          program = function ()
+            vim.fn.jobstart("cargo build")
+            local exe = vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file")
+            local input = vim.fn.input("Program arguments: ")
+            local args = vim.split(input, " +")
+
+            dap.configurations.cpp[1].args = args
+            return exe
           end,
           cwd = "${workspaceFolder}",
           stopOnEntry = false,
@@ -46,9 +52,30 @@ local plugins = {
 
       -- Reuse config for C
       dap.configurations.c = dap.configurations.cpp
-    end,
-  },
 
+      dap.configurations.rust = {
+        {
+          name = "Launch file",
+          type = "codelldb",
+          request = "launch",
+          program = function ()
+            vim.fn.jobstart("cargo build")
+            local exe = vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/target/debug/","file")
+
+            -- then ask for args
+            local input = vim.fn.input("Program arguments: ")
+            local args = vim.split(input, " +")
+            -- assign args dynamically
+            dap.configurations.rust[1].args = args
+            return exe
+          end,
+          cwd = "${workspaceFolder}",
+          stopOnEntry = false,
+          runInTerminal = false
+        }
+      }
+    end
+  },
   {
     "jay-babu/mason-nvim-dap.nvim",
     event = "VeryLazy",
@@ -63,9 +90,57 @@ local plugins = {
       handlers = {},
     },
   },
+ 
+  {
+    'mrcjkb/rustaceanvim',
+    version = '^6', -- Recommended
+    lazy = false, -- This plugin is already lazy
+    config = function ()
+      local cfg = require("rustaceanvim.config")
+
+      -- Root Mason path
+      local mason_root = vim.fn.stdpath("data") .. "/mason"
+      local codelldb_root = mason_root .. "/packages/codelldb/extension/"
+
+      local codelldb_path = codelldb_root .. "adapter/codelldb"
+      local liblldb_path = codelldb_root .. "lldb/lib/liblldb.so"
+    
+      vim.g.rustaceanvim = {
+        dap = {
+          adapter = cfg.get_codelldb_adapter(codelldb_path, liblldb_path),
+        },
+      }
+
+    end 
+  },
 
   {
     "mfussenegger/nvim-dap",
+  },
+
+  {
+    'rust-lang/rust.vim',
+    ft = "rust",
+    init = function ()
+      vim.g.rustfmt_autosave = 1
+    end
+  },
+
+  {
+    'saecki/crates.nvim',
+    ft = {'toml'},
+    config = function ()
+      require("crates").setup {
+        completion = {
+          cmp = {
+            enabled = true
+          },
+        },
+      }
+      require("cmp").setup.buffer({
+        sources = {{name = "crates"}}
+      })
+    end
   },
 
   {
@@ -83,7 +158,6 @@ local plugins = {
       require "custom.configs.lspconfig"
     end,
   },
-
   {
     "williamboman/mason.nvim",
     opts = {
@@ -91,6 +165,7 @@ local plugins = {
         "clangd",
         "clang-format",
         "codelldb",
+        "rust-analyzer"
       },
     },
   },
